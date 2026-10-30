@@ -1,13 +1,20 @@
 "use client";
 
-import { useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useEffect, useState } from "react";
+import { useConvex, useMutation, useQuery } from "convex/react";
 import { convexFunctions, MessageType } from "@/lib/convex-functions";
 import { upcomingEvents } from "@/data/home-content";
+import { convexFeaturesEnabled } from "@/lib/convex-enabled";
 
 type Tab = "inbox" | "ideas" | "dms" | "rsvps";
 const slug = (value: string) => value.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-").replaceAll(/(^-|-$)/g, "");
 const ago = (time: number) => { const minutes = Math.max(1, Math.floor((Date.now() - time) / 60_000)); return minutes < 60 ? `${minutes}m ago` : `${Math.floor(minutes / 60)}h ago`; };
+
+function useSafePresence(active: boolean) {
+  const convex = useConvex(); const [count, setCount] = useState<number | undefined>();
+  useEffect(() => { if (!active || !convexFeaturesEnabled) return; void convex.query(convexFunctions.presenceCount, {}).then(setCount).catch(() => setCount(undefined)); }, [active, convex]);
+  return count;
+}
 
 function RsvpGroup({ workshopId, title, credentials }: { workshopId: string; title: string; credentials: { username: string; password: string } }) {
   const rows = useQuery(convexFunctions.rsvpsByWorkshop, { ...credentials, workshopId });
@@ -22,7 +29,7 @@ export default function AdminPage() {
   const access = useQuery(convexFunctions.adminAccess, credentials ?? "skip");
   const [tab, setTab] = useState<Tab>("inbox"); const type: MessageType | undefined = tab === "ideas" ? "idea" : tab === "dms" ? "dm" : tab === "inbox" ? "hello" : undefined;
   const messages = useQuery(convexFunctions.messageList, access?.allowed && type && credentials ? { ...credentials, type, archived: false } : "skip");
-  const stats = useQuery(convexFunctions.messageStats, access?.allowed && credentials ? credentials : "skip"); const live = useQuery(convexFunctions.presenceCount);
+  const stats = useQuery(convexFunctions.messageStats, access?.allowed && credentials ? credentials : "skip"); const live = useSafePresence(Boolean(access?.allowed));
   const markRead = useMutation(convexFunctions.markMessageRead); const archive = useMutation(convexFunctions.archiveMessage); const remove = useMutation(convexFunctions.removeMessage);
   const [selected, setSelected] = useState<string | null>(null); const active = messages?.find(row => row._id === selected);
   if (!credentials) return <main className="grid min-h-screen place-items-center bg-[#f3c5ce] p-5"><form onSubmit={event => { event.preventDefault(); const form = new FormData(event.currentTarget); setCredentials({ username: String(form.get("username") ?? ""), password: String(form.get("password") ?? "") }); }} className="w-full max-w-md border-2 border-[#ee3729] bg-[#f9f7ed] p-8 shadow-[9px_10px_0_#ee3729]"><a href="/" className="mono text-xs text-[#ee3729]">← back to dhoklu</a><h1 className="display mt-8 text-5xl text-[#ee3729]">HOST DESK.</h1><p className="mt-4 text-[#173f5d]">A small, private corner for Janhvi.</p><label className="section-eyebrow mt-7 block" htmlFor="username">username</label><input id="username" name="username" required className="contact-input mt-2 w-full rounded-lg border border-[#173f5d]/55 bg-white px-4 py-3 outline-none"/><label className="section-eyebrow mt-4 block" htmlFor="password">password</label><input id="password" name="password" required type="password" className="contact-input mt-2 w-full rounded-lg border border-[#173f5d]/55 bg-white px-4 py-3 outline-none"/><button className="pill mt-7 text-xs" type="submit">enter desk</button></form></main>;
