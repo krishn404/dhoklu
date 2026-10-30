@@ -1,12 +1,12 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useConvex, useMutation } from "convex/react";
 import type { Id } from "@/convex/_generated/dataModel";
 import { convexFunctions, AdminEventRecord, EventFields } from "@/lib/convex-functions";
 
 type Credentials = { username: string; password: string };
-type AdminEvent = AdminEventRecord;
 type EventForm = { title: string; startsAt: string; kind: string; place: string; description: string; color: string; published: boolean; capacity: string };
 
 const nextWeek = () => Date.now() + 7 * 24 * 60 * 60 * 1000;
@@ -23,10 +23,11 @@ export function AdminEvents({ credentials }: { credentials: Credentials }) {
   const createEvent = useMutation(convexFunctions.createEvent);
   const updateEvent = useMutation(convexFunctions.updateEvent);
   const removeEvent = useMutation(convexFunctions.removeEvent);
-  const [events, setEvents] = useState<AdminEvent[]>([]);
+  const [events, setEvents] = useState<AdminEventRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [isEditorOpen, setEditorOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [form, setForm] = useState<EventForm>(emptyForm);
@@ -44,12 +45,12 @@ export function AdminEvents({ credentials }: { credentials: Credentials }) {
     return () => { active = false; };
   }, [convex, credentials, refreshKey]);
 
-  const resetForm = () => { setEditingId(null); setForm(emptyForm()); setMessage(""); setError(""); };
-  const beginEdit = (event: AdminEvent) => {
+  const closeEditor = () => { setEditorOpen(false); setEditingId(null); setForm(emptyForm()); setError(""); };
+  const startCreate = () => { setEditingId(null); setForm(emptyForm()); setMessage(""); setError(""); setEditorOpen(true); };
+  const beginEdit = (event: AdminEventRecord) => {
     setEditingId(event._id);
     setForm({ title: event.title, startsAt: toLocalDateTime(event.startsAt), kind: event.kind, place: event.place, description: event.description, color: event.color, published: event.published, capacity: event.capacity === undefined ? "" : String(event.capacity) });
-    setMessage(""); setError("");
-    document.getElementById("event-editor")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setMessage(""); setError(""); setEditorOpen(true);
   };
 
   const formData = (): EventFields | null => {
@@ -72,13 +73,13 @@ export function AdminEvents({ credentials }: { credentials: Credentials }) {
       else await createEvent({ ...credentials, ...values });
       setRefreshKey(key => key + 1);
       setMessage(editingId ? "Event updated." : "Event created.");
-      setEditingId(null); setForm(emptyForm());
+      closeEditor();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not save the event. Please try again.");
     } finally { setSaving(false); }
   }
 
-  async function togglePublished(event: AdminEvent) {
+  async function togglePublished(event: AdminEventRecord) {
     const { rsvpCount: _rsvpCount, _id, _creationTime, ...values } = event;
     setError(""); setMessage("");
     try {
@@ -90,13 +91,13 @@ export function AdminEvents({ credentials }: { credentials: Credentials }) {
     }
   }
 
-  async function deleteEvent(event: AdminEvent) {
+  async function deleteEvent(event: AdminEventRecord) {
     const registrations = event.rsvpCount ? ` This will also permanently delete ${event.rsvpCount} RSVP${event.rsvpCount === 1 ? "" : "s"}.` : "";
     if (!window.confirm(`Delete “${event.title}”?${registrations}`)) return;
     setError(""); setMessage("");
     try {
       await removeEvent({ ...credentials, id: event._id });
-      if (editingId === event._id) resetForm();
+      if (editingId === event._id) closeEditor();
       setRefreshKey(key => key + 1);
       setMessage("Event deleted.");
     } catch (cause) {
@@ -105,27 +106,31 @@ export function AdminEvents({ credentials }: { credentials: Credentials }) {
   }
 
   const inputClass = "contact-input mt-2 w-full rounded-lg border border-[#173f5d]/40 bg-white px-3 py-2 outline-none focus:border-[#ee3729]";
-  return <div className="mt-8 grid gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(320px,.85fr)]">
-    <section aria-labelledby="events-admin-title">
-      <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="mono text-xs uppercase">public event listings</p><h2 id="events-admin-title" className="display mt-2 text-3xl text-[#ee3729]">EVENTS.</h2></div><p className="mono text-xs">{events.length} total</p></div>
-      {loading ? <p className="mt-6 mono text-xs uppercase">loading events...</p> : loadFailed ? <p role="status" className="mt-6 text-sm">Couldn’t load events. Check the Convex deployment and try again.</p> : events.length === 0 ? <p className="mt-6 rounded-xl border border-[#173f5d]/20 bg-white p-5 text-sm">No events yet. Create one and publish it when it’s ready.</p> : <div className="mt-5 grid gap-3">{events.map(event => <article key={event._id} className="rounded-xl border border-[#173f5d]/20 bg-white p-4">
-        <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-2 py-1 mono text-[10px] uppercase ${event.published ? "bg-[#d9f3d1]" : "bg-[#eee]"}`}>{event.published ? "published" : "draft"}</span><span className="mono text-xs uppercase">{event.kind}</span></div><h3 className="display mt-3 break-words text-xl text-[#ee3729]">{event.title}</h3><p className="mt-2 text-sm">{dateLabel(event.startsAt)} · {event.place}</p>{event.description && <p className="mt-2 line-clamp-2 text-sm text-[#173f5d]/80">{event.description}</p>}<p className="mt-2 mono text-xs uppercase">{event.rsvpCount} RSVP{event.rsvpCount === 1 ? "" : "s"}{event.capacity ? ` · ${event.capacity} seats` : " · no capacity limit"}</p></div><span className="h-8 w-8 shrink-0 rounded-full border border-[#173f5d]/20" style={{ backgroundColor: event.color }} aria-label={`Card color ${event.color}`} /></div>
-        <div className="mt-4 flex flex-wrap gap-4"><button type="button" onClick={() => beginEdit(event)} className="mono text-xs uppercase underline">edit</button><button type="button" onClick={() => void togglePublished(event)} className="mono text-xs uppercase underline">{event.published ? "unpublish" : "publish"}</button><button type="button" onClick={() => void deleteEvent(event)} className="mono text-xs uppercase text-[#ee3729] underline">delete</button></div>
-      </article>)}</div>}
-    </section>
-
-    <section id="event-editor" className="h-fit rounded-xl border border-[#173f5d]/25 bg-[#a9d4f4] p-5 md:p-6" aria-labelledby="event-editor-title">
-      <p className="mono text-xs uppercase">{editingId ? "edit this gathering" : "add a gathering"}</p><h2 id="event-editor-title" className="display mt-2 text-3xl text-[#ee3729]">{editingId ? "EDIT EVENT." : "NEW EVENT."}</h2>
-      <form onSubmit={save} className="mt-5 grid gap-4">
-        <label className="section-eyebrow">title<input required maxLength={100} value={form.title} onChange={event => setForm({ ...form, title: event.target.value })} className={inputClass} placeholder="A Pune making table" /></label>
-        <label className="section-eyebrow">date and time<input required type="datetime-local" value={form.startsAt} onChange={event => setForm({ ...form, startsAt: event.target.value })} className={inputClass} /></label>
-        <div className="grid gap-4 sm:grid-cols-2"><label className="section-eyebrow">type<input required maxLength={60} value={form.kind} onChange={event => setForm({ ...form, kind: event.target.value })} className={inputClass} placeholder="workshop" /></label><label className="section-eyebrow">location<input required maxLength={120} value={form.place} onChange={event => setForm({ ...form, place: event.target.value })} className={inputClass} placeholder="Pune" /></label></div>
-        <label className="section-eyebrow">description<textarea maxLength={1000} rows={4} value={form.description} onChange={event => setForm({ ...form, description: event.target.value })} className={inputClass} placeholder="What will people make or do?" /></label>
-        <div className="grid gap-4 sm:grid-cols-2"><label className="section-eyebrow">seat capacity<input type="number" min={1} max={10000} value={form.capacity} onChange={event => setForm({ ...form, capacity: event.target.value })} className={inputClass} placeholder="No limit" /></label><label className="section-eyebrow">card color<input type="color" value={form.color} onChange={event => setForm({ ...form, color: event.target.value })} className={`${inputClass} h-11 p-1`} /></label></div>
-        <label className="flex items-center gap-3 mono text-xs uppercase"><input type="checkbox" checked={form.published} onChange={event => setForm({ ...form, published: event.target.checked })} className="h-4 w-4 accent-[#ee3729]" />show this event publicly</label>
-        {error && <p role="alert" className="text-sm text-[#9f1c16]">{error}</p>}{message && <p role="status" className="text-sm">{message}</p>}
-        <div className="flex flex-wrap gap-3"><button type="submit" disabled={saving} className="rounded-full bg-[#173f5d] px-5 py-3 mono text-xs uppercase text-white disabled:opacity-50">{saving ? "saving..." : editingId ? "save changes" : "create event"}</button>{editingId && <button type="button" onClick={resetForm} className="rounded-full border border-[#173f5d]/50 px-5 py-3 mono text-xs uppercase">cancel edit</button>}</div>
+  const editor = isEditorOpen && typeof document !== "undefined" ? createPortal(<div className="fixed inset-0 z-[100] grid place-items-center bg-[#173f5d]/65 p-4 sm:p-8" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) closeEditor(); }}>
+    <section className="max-h-[88vh] w-[min(92vw,900px)] overflow-y-auto rounded-2xl border-2 border-[#ee3729] bg-[#a9d4f4] p-5 text-[#173f5d] shadow-[10px_12px_0_rgba(238,55,41,.5)] md:p-8" role="dialog" aria-modal="true" aria-labelledby="event-editor-title">
+      <div className="flex items-start justify-between gap-4"><div><p className="mono text-xs uppercase">{editingId ? "edit this gathering" : "add a gathering"}</p><h2 id="event-editor-title" className="display mt-2 text-3xl text-[#ee3729]">{editingId ? "EDIT EVENT." : "NEW EVENT."}</h2></div><button type="button" aria-label="Close event editor" onClick={closeEditor} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[#173f5d]/40 text-2xl leading-none">×</button></div>
+      <form onSubmit={save} className="mt-6 grid gap-4 sm:grid-cols-2">
+        <label className="section-eyebrow sm:col-span-2">title<input required maxLength={100} value={form.title} onChange={event => setForm({ ...form, title: event.target.value })} className={inputClass} placeholder="A Pune making table" /></label>
+        <label className="section-eyebrow sm:col-span-2">date and time<input required type="datetime-local" value={form.startsAt} onChange={event => setForm({ ...form, startsAt: event.target.value })} className={inputClass} /></label>
+        <label className="section-eyebrow">type<input required maxLength={60} value={form.kind} onChange={event => setForm({ ...form, kind: event.target.value })} className={inputClass} placeholder="workshop" /></label>
+        <label className="section-eyebrow">location<input required maxLength={120} value={form.place} onChange={event => setForm({ ...form, place: event.target.value })} className={inputClass} placeholder="Pune" /></label>
+        <label className="section-eyebrow sm:col-span-2">description<textarea maxLength={1000} rows={4} value={form.description} onChange={event => setForm({ ...form, description: event.target.value })} className={inputClass} placeholder="What will people make or do?" /></label>
+        <label className="section-eyebrow">seat capacity<input type="number" min={1} max={10000} value={form.capacity} onChange={event => setForm({ ...form, capacity: event.target.value })} className={inputClass} placeholder="No limit" /></label>
+        <label className="section-eyebrow">card color<input type="color" value={form.color} onChange={event => setForm({ ...form, color: event.target.value })} className={`${inputClass} h-11 p-1`} /></label>
+        <label className="flex items-center gap-3 mono text-xs uppercase sm:col-span-2"><input type="checkbox" checked={form.published} onChange={event => setForm({ ...form, published: event.target.checked })} className="h-4 w-4 accent-[#ee3729]" />show this event publicly</label>
+        {error && <p role="alert" className="text-sm text-[#9f1c16] sm:col-span-2">{error}</p>}
+        <div className="flex flex-wrap gap-3 sm:col-span-2"><button type="submit" disabled={saving} className="rounded-full bg-[#173f5d] px-5 py-3 mono text-xs uppercase text-white disabled:opacity-50">{saving ? "saving..." : editingId ? "save changes" : "create event"}</button><button type="button" onClick={closeEditor} className="rounded-full border border-[#173f5d]/50 px-5 py-3 mono text-xs uppercase">cancel</button></div>
       </form>
     </section>
-  </div>;
+  </div>, document.body) : null;
+
+  return <section className="mt-8" aria-labelledby="events-admin-title">
+    <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="mono text-xs uppercase">public event listings</p><h2 id="events-admin-title" className="display mt-2 text-3xl text-[#ee3729]">EVENTS.</h2></div><div className="flex items-center gap-4"><p className="mono text-xs">{events.length} total</p><button type="button" onClick={startCreate} aria-label="Create event" title="Create event" className="grid h-12 w-12 place-items-center rounded-full bg-[#ee3729] text-3xl font-light leading-none text-white shadow-[4px_4px_0_rgba(23,63,93,.22)] transition-transform hover:-translate-y-0.5">+</button></div></div>
+    {message && <p role="status" className="mt-4 text-sm">{message}</p>}{error && <p role="alert" className="mt-4 text-sm text-[#9f1c16]">{error}</p>}
+    {loading ? <p className="mt-6 mono text-xs uppercase">loading events...</p> : loadFailed ? <p role="status" className="mt-6 text-sm">Couldn’t load events. Check the Convex deployment and try again.</p> : events.length === 0 ? <p className="mt-6 rounded-xl border border-[#173f5d]/20 bg-white p-5 text-sm">No events yet. Use + to create one, then publish it when it’s ready.</p> : <div className="mt-5 grid gap-3">{events.map(event => <article key={event._id} className="rounded-xl border border-[#173f5d]/20 bg-white p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-2 py-1 mono text-[10px] uppercase ${event.published ? "bg-[#d9f3d1]" : "bg-[#eee]"}`}>{event.published ? "published" : "draft"}</span><span className="mono text-xs uppercase">{event.kind}</span></div><h3 className="display mt-3 break-words text-xl text-[#ee3729]">{event.title}</h3><p className="mt-2 text-sm">{dateLabel(event.startsAt)} · {event.place}</p>{event.description && <p className="mt-2 line-clamp-2 text-sm text-[#173f5d]/80">{event.description}</p>}<p className="mt-2 mono text-xs uppercase">{event.rsvpCount} RSVP{event.rsvpCount === 1 ? "" : "s"}{event.capacity ? ` · ${event.capacity} seats` : " · no capacity limit"}</p></div><span className="h-8 w-8 shrink-0 rounded-full border border-[#173f5d]/20" style={{ backgroundColor: event.color }} aria-label={`Card color ${event.color}`} /></div>
+      <div className="mt-4 flex flex-wrap gap-4"><button type="button" onClick={() => beginEdit(event)} className="mono text-xs uppercase underline">edit</button><button type="button" onClick={() => void togglePublished(event)} className="mono text-xs uppercase underline">{event.published ? "unpublish" : "publish"}</button><button type="button" onClick={() => void deleteEvent(event)} className="mono text-xs uppercase text-[#ee3729] underline">delete</button></div>
+    </article>)}</div>}
+    {editor}
+  </section>;
 }

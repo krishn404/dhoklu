@@ -183,7 +183,7 @@ export default function AdminPage() {
       </aside>
 
       <section>
-        <div className="grid gap-3 sm:grid-cols-4">{[["unread", stats?.unread], ["messages", stats?.messages], ["rsvps", stats?.rsvps], ["here now", live]].map(([label, value]) => <div key={String(label)} className="rounded-xl border border-[#173f5d]/20 bg-white p-4"><p className="mono text-xs uppercase">{label}</p><strong className="display mt-2 block text-3xl text-[#ee3729]">{value ?? "—"}</strong></div>)}</div>
+        <div className="grid gap-3 sm:grid-cols-4">{[["unread", stats?.unread], ["messages", stats?.messages], ["rsvps", stats?.rsvps], ["here now", live]].map(([label, value]) => <div key={String(label)} title={label === "here now" ? "Visitors active on the site in the last 45 seconds." : undefined} className="rounded-xl border border-[#173f5d]/20 bg-white p-4"><p className="mono text-xs uppercase">{label}{label === "here now" && <span aria-hidden="true" className="ml-1 normal-case">ⓘ</span>}</p><strong className="display mt-2 block text-3xl text-[#ee3729]">{value ?? "—"}</strong></div>)}</div>
         {tab === "events" ? <AdminEvents credentials={credentials} /> : tab === "rsvps" ? <AdminRsvps credentials={credentials} /> : <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,.7fr)]">
           <div>
             <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filter updates">{filters.map(([key, label]) => <button key={key} type="button" aria-pressed={messageFilter === key} onClick={() => { setMessageFilter(key); setSelected(null); }} className={`rounded-full px-4 py-2 mono text-xs uppercase ${messageFilter === key ? "bg-[#173f5d] text-white" : "border border-[#173f5d]/30"}`}>{label}</button>)}</div>

@@ -36,6 +36,6 @@ export function EventsSection() {
       <a className="event-idea-link" href="#contact">Got an event idea? Let’s plan it ↗</a>
       {loading ? <p className="mt-8 mono text-xs uppercase text-[#173f5d]">finding the next little gathering...</p> : loadFailed ? <p role="status" className="mt-8 mono text-xs uppercase text-[#173f5d]">Events are taking a tiny pause. Please check back soon.</p> : events.length ? <div className="events-grid">{events.map((item, index) => <WorkshopCard key={item._id} item={item} index={index} refreshKey={rsvpRefreshKey} onRsvp={() => setActiveEvent(item)} />)}</div> : <p className="mt-8 mono text-xs uppercase text-[#173f5d]">No upcoming events just yet. Check back soon.</p>}
     </div>
-    <AnimatePresence>{activeEvent && <RsvpModal eventId={activeEvent._id} title={activeEvent.title} onClose={() => setActiveEvent(null)} onSuccess={() => setRsvpRefreshKey(key => key + 1)} />}</AnimatePresence>
+    <AnimatePresence>{activeEvent && <RsvpModal eventId={activeEvent._id} title={activeEvent.title} startsAt={activeEvent.startsAt} place={activeEvent.place} description={activeEvent.description} onClose={() => setActiveEvent(null)} onSuccess={() => setRsvpRefreshKey(key => key + 1)} />}</AnimatePresence>
   </section>;
 }
