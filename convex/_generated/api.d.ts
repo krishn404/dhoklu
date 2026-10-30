@@ -11,6 +11,7 @@
 import type * as admin from "../admin.js";
 import type * as crons from "../crons.js";
 import type * as dashboard from "../dashboard.js";
+import type * as events from "../events.js";
 import type * as messages from "../messages.js";
 import type * as presence from "../presence.js";
 import type * as rateLimit from "../rateLimit.js";
@@ -26,6 +27,7 @@ declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   crons: typeof crons;
   dashboard: typeof dashboard;
+  events: typeof events;
   messages: typeof messages;
   presence: typeof presence;
   rateLimit: typeof rateLimit;

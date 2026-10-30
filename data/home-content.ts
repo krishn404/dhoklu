@@ -1,17 +1,3 @@
-export type CommunityEvent = {
-  date: string;
-  title: string;
-  kind: string;
-  place: string;
-  color: string;
-};
-
-export const upcomingEvents: CommunityEvent[] = [
-  { date: "SOON", title: "A Pune making table", kind: "workshop", place: "Pune", color: "#f7e914" },
-  { date: "SOON", title: "Draw what you hear", kind: "creative play", place: "Pune", color: "#a9d4f4" },
-  { date: "SOON", title: "Tiny things, big joy", kind: "pop-up", place: "Pune", color: "#f3c5ce" }
-];
-
 export const portfolioProjects = [
   { title: "Tidy code", tag: "code stuff", note: "Turning messy problems into calm little tools." },
   { title: "Margin art", tag: "maker mode", note: "Sketches, scraps and colour tests, just for fun." },

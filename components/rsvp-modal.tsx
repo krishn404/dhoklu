@@ -3,10 +3,11 @@
 import { FormEvent, useState } from "react";
 import { useMutation } from "convex/react";
 import { convexFunctions } from "@/lib/convex-functions";
+import type { Id } from "@/convex/_generated/dataModel";
 import { getSessionId } from "@/lib/session";
 import { convexFeaturesEnabled } from "@/lib/convex-enabled";
 
-export function RsvpModal({ workshopId, title, onClose }: { workshopId: string; title: string; onClose: () => void }) {
+export function RsvpModal({ eventId, title, onClose, onSuccess }: { eventId: Id<"events">; title: string; onClose: () => void; onSuccess?: () => void }) {
   const create = useMutation(convexFunctions.createRsvp);
   const [status, setStatus] = useState("");
   const [sending, setSending] = useState(false);
@@ -18,8 +19,9 @@ export function RsvpModal({ workshopId, title, onClose }: { workshopId: string; 
     if (!convexFeaturesEnabled) return setStatus("RSVPs are taking a tiny pause. Try again soon!");
     setSending(true); setStatus("");
     try {
-      await create({ workshopId, name, contact: String(form.get("contact") ?? ""), seats: Number(form.get("seats") ?? 1), note: String(form.get("note") ?? ""), sessionId: getSessionId() });
+      await create({ eventId, name, contact: String(form.get("contact") ?? ""), seats: Number(form.get("seats") ?? 1), note: String(form.get("note") ?? ""), sessionId: getSessionId() });
       setStatus("You’re on the list. See you there!");
+      onSuccess?.();
       event.currentTarget.reset();
     } catch (error) { setStatus(error instanceof Error ? error.message : "That didn’t go through. Try again?"); }
     finally { setSending(false); }
