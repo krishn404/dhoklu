@@ -1,27 +1,26 @@
 "use client";
 
-import { useEffect } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useEffect, useState } from "react";
+import { useConvex } from "convex/react";
 import { convexFunctions } from "@/lib/convex-functions";
 import { getSessionId } from "@/lib/session";
 import { convexFeaturesEnabled } from "@/lib/convex-enabled";
 
 function Presence() {
-  const heartbeat = useMutation(convexFunctions.heartbeat);
-  const leave = useMutation(convexFunctions.leave);
-  const count = useQuery(convexFunctions.presenceCount, convexFeaturesEnabled ? {} : "skip");
+  const convex = useConvex();
+  const [count, setCount] = useState<number | undefined>();
   useEffect(() => {
     if (!convexFeaturesEnabled) return;
     const sessionId = getSessionId();
-    const ping = () => { void heartbeat({ sessionId }); };
+    const ping = () => { void convex.mutation(convexFunctions.heartbeat, { sessionId }).then(() => convex.query(convexFunctions.presenceCount, {})).then(setCount).catch(() => setCount(undefined)); };
     ping();
     const timer = window.setInterval(ping, 15_000);
-    const pagehide = () => { void leave({ sessionId }); };
+    const pagehide = () => { void convex.mutation(convexFunctions.leave, { sessionId }).catch(() => undefined); };
     let hiddenTimer: number | undefined;
     const visibility = () => { if (document.hidden) hiddenTimer = window.setTimeout(pagehide, 60_000); else { if (hiddenTimer) window.clearTimeout(hiddenTimer); ping(); } };
     window.addEventListener("pagehide", pagehide); document.addEventListener("visibilitychange", visibility);
     return () => { window.clearInterval(timer); if (hiddenTimer) window.clearTimeout(hiddenTimer); window.removeEventListener("pagehide", pagehide); document.removeEventListener("visibilitychange", visibility); };
-  }, [heartbeat, leave]);
+  }, [convex]);
   if (!convexFeaturesEnabled || count === undefined) return null;
   return <span className="presence mono"><i aria-hidden="true" />{Math.max(1, count)} here now</span>;
 }
