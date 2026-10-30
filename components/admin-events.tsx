@@ -4,9 +4,8 @@ import { FormEvent, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useConvex, useMutation } from "convex/react";
 import type { Id } from "@/convex/_generated/dataModel";
-import { convexFunctions, AdminEventRecord, EventFields } from "@/lib/convex-functions";
+import { convexFunctions, AdminEventRecord, AdminSession, EventFields } from "@/lib/convex-functions";
 
-type Credentials = { username: string; password: string };
 type EventForm = { title: string; startsAt: string; kind: string; place: string; description: string; color: string; published: boolean; capacity: string };
 
 const nextWeek = () => Date.now() + 7 * 24 * 60 * 60 * 1000;
@@ -18,7 +17,7 @@ const toLocalDateTime = (timestamp: number) => {
 const emptyForm = (): EventForm => ({ title: "", startsAt: toLocalDateTime(nextWeek()), kind: "workshop", place: "Pune", description: "", color: "#f7e914", published: false, capacity: "" });
 const dateLabel = (timestamp: number) => new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" }).format(timestamp);
 
-export function AdminEvents({ credentials }: { credentials: Credentials }) {
+export function AdminEvents({ credentials }: { credentials: AdminSession }) {
   const convex = useConvex();
   const createEvent = useMutation(convexFunctions.createEvent);
   const updateEvent = useMutation(convexFunctions.updateEvent);

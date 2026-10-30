@@ -2,7 +2,7 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { requireAdmin } from "./admin";
 
-const credentials = { username: v.string(), password: v.string() };
+const credentials = { token: v.string() };
 const eventFields = {
   title: v.string(),
   startsAt: v.number(),
@@ -35,7 +35,7 @@ export const listPublic = query({
 export const listAdmin = query({
   args: credentials,
   handler: async (ctx, args) => {
-    await requireAdmin(ctx, args.username, args.password);
+    await requireAdmin(ctx, args.token);
     const events = await ctx.db.query("events").withIndex("by_starts_at").order("asc").collect();
     return await Promise.all(events.map(async event => ({
       ...event,
@@ -47,9 +47,9 @@ export const listAdmin = query({
 export const create = mutation({
   args: { ...credentials, ...eventFields },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx, args.username, args.password);
+    await requireAdmin(ctx, args.token);
     validateEvent(args);
-    const { username: _username, password: _password, ...event } = args;
+    const { token: _token, ...event } = args;
     return await ctx.db.insert("events", { ...event, title: event.title.trim(), kind: event.kind.trim(), place: event.place.trim(), description: event.description.trim() });
   },
 });
@@ -57,9 +57,9 @@ export const create = mutation({
 export const update = mutation({
   args: { ...credentials, id: v.id("events"), ...eventFields },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx, args.username, args.password);
+    await requireAdmin(ctx, args.token);
     validateEvent(args);
-    const { username: _username, password: _password, id, ...event } = args;
+    const { token: _token, id, ...event } = args;
     await ctx.db.patch(id, { ...event, title: event.title.trim(), kind: event.kind.trim(), place: event.place.trim(), description: event.description.trim() });
   },
 });
@@ -67,7 +67,7 @@ export const update = mutation({
 export const remove = mutation({
   args: { ...credentials, id: v.id("events") },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx, args.username, args.password);
+    await requireAdmin(ctx, args.token);
     const rsvps = await ctx.db.query("rsvps").withIndex("by_event", q => q.eq("eventId", args.id)).collect();
     for (const rsvp of rsvps) await ctx.db.delete(rsvp._id);
     await ctx.db.delete(args.id);
